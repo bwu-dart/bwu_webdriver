@@ -1,0 +1,23 @@
+name: bwu_webdriver
+version: 0.1.0
+description: A collection of utilities for testing with webdriver.
+homepage: https://github.com/bwu-dart/bwu_webdriver
+author: Günter Zöchbauer <guenter@gzoechbauer.com>
+environment:
+  sdk: '>=1.9.0 <2.0.0'
+
+dependencies:
+  webdriver: '>=0.10.0-pre.9 <0.11.0'
+
+dev_dependencies:
+  bwu_grinder_tasks: ^0.1.0
+  grinder: '>=0.7.0 <0.8.0'
+  test: '>=0.12.0 < 0.13.0'
+
+dependency_overrides:
+
+transformers:
+
+- test/pub_serve:
+    $include: test/**_test{.*,}.dart
+
