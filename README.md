@@ -7,3 +7,6 @@
 
 ## BWU WebDriver is a collection of tools to make it easier to build WebDriver
 tests.
+
+- Simulate drag and drop using events created by jQuery to work around Chrome
+ChromeDriver issue https://code.google.com/p/chromedriver/issues/detail?id=841

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <style>
+      #log {
+        position: absolute;
+        left: 600px;
+        width: 250px;
+        height: 500px;
+        background-color: lightgrey;
+      }
+      #log div {
+        font-family: monospace;
+        font-size: smaller;
+      }
+      #area {
+        position: absolute;
+        top: 50px;
+        left: 50px;
+        width: 500px;
+        height: 500px;
+        border: solid 1px red;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="area">
+      Jahrelang haben wir Bibliotheken wie JQuery und Dojo zur Vereinfachung von komplexen Elementen der Benutzeroberfläche wie Animationen, abgerundeten Ecken und Drag & Drop eingesetzt. Ein Blickfang ist für überzeugende, immersive Erfahrungen im Web zweifellos wichtig. Doch warum sollte für gängige Aufgaben, die von allen Entwicklern durchgeführt werden, eine Bibliothek erforderlich sein?
+
+      Drag & Drop (DnD) ist ein HTML5-Spitzenmerkmal! In der Spezifikation sind ein Mechanismus auf Basis von Ereignissen, das JavaScript-API und eine zusätzliche Auszeichnung definiert, durch die deklariert wird, dass buchstäblich jede Art von Element auf einer Seite ziehbar (draggable) sein kann. Gegen nativen Browsersupport für eine bestimmte Funktion kann wohl niemand Einwände haben. Natives DnD bei Browsern führt zu schnelleren, reaktionsfähigeren Web-Apps.
+
+      Funktionserkennung
+
+      Viele Apps, in denen DnD eingesetzt wird, wären ohne diese Funktion nicht gerade benutzerfreundlich. Stellen Sie sich beispielsweise Schachfiguren vor, die sich nicht bewegen lassen. Hoppla! Auch bei einem schon recht umfassenden Browsersupport ist es wichtig zu bestimmen, ob ein Browser DnD – oder eine beliebige HTML5-Funktion zu diesem Zweck – implementiert, um eine Lösung mit ansprechendem Ausblendeffekt bereitstellen zu können. Wenn DnD nicht verfügbar ist, aktivieren Sie den Fallback der Bibliothek, damit die betreffende App weiter funktioniert.
+
+      Falls Sie ein API verwenden müssen, nutzen Sie grundsätzlich die Funktionserkennung, statt den Header "User-Agent" des Browsers zu durchsuchen. Eine der besseren Bibliotheken für die Funktionserkennung ist Modernizr. Modernizr legt für jede getestete Funktion eine boolesche Eigenschaft fest. Daher bedarf es zur Prüfung auf DnD nur einer Zeile:
+    </div>
+
+    <div id="log"></div>
+    <script type="application/dart" src="mousepos.dart"></script>
+    <script src="packages/browser/dart.js"></script>
+  </body>
+</html>

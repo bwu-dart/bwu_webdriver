@@ -21,6 +21,12 @@ packages:
     description: barback
     source: hosted
     version: "0.15.2+6"
+  bwu_docker:
+    description:
+      path: "../bwu_docker"
+      relative: true
+    source: path
+    version: "0.2.1"
   bwu_grinder_tasks:
     description: bwu_grinder_tasks
     source: hosted
@@ -57,6 +63,10 @@ packages:
     description: html
     source: hosted
     version: "0.12.1+2"
+  http:
+    description: http
+    source: hosted
+    version: "0.11.3"
   http_multi_server:
     description: http_multi_server
     source: hosted
@@ -108,7 +118,7 @@ packages:
   shelf_static:
     description: shelf_static
     source: hosted
-    version: "0.2.2"
+    version: "0.2.3"
   shelf_web_socket:
     description: shelf_web_socket
     source: hosted
