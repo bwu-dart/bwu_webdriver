@@ -10,6 +10,7 @@ dependencies:
   webdriver: '>=0.10.0-pre.9 <0.11.0'
 
 dev_dependencies:
+  browser: '^0.10.0+2'
   bwu_docker: #'^0.2.1'
     path: ../bwu_docker
   bwu_grinder_tasks: ^0.1.0

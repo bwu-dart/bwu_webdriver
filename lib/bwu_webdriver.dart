@@ -1,5 +1,5 @@
 library bwu_webdriver.bwu_webdriver;
 
-export 'src/action.dart';
+export 'src/extended_webdriver.dart';
 
 

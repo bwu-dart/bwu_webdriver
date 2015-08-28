@@ -9,15 +9,29 @@ import 'package:bwu_docker/tasks.dart' as task;
 import 'package:bwu_grinder_tasks/bwu_grinder_tasks.dart' as grinderTasks;
 export 'package:bwu_grinder_tasks/bwu_grinder_tasks.dart' hide main;
 
+const seleniumImageVersion = ':2.47.1';
+
+const _seleniumHubImage = 'selenium/hub${seleniumImageVersion}';
+const _hubContainerName = 'selenium-hub';
+
+//const seleniumChromeImage = 'selenium/node-chrome${seleniumImageVersion}';
+const _seleniumChromeImage = 'selenium/node-chrome-debug${seleniumImageVersion}';
+
+//const seleniumFirefoxImage = 'selenium/node-firefox${seleniumImageVersion}';
+const _seleniumFirefoxImage = 'selenium/node-firefox-debug${seleniumImageVersion}';
+
+const webServer = 'webserver:192.168.2.156';
+//const webServer = 'webserver:192.168.2.96';
+
 main(List<String> args) async {
   final origTestTask = grinderTasks.testTask;
 //  grinderTasks.testTask = (List<String> platforms) async {
-    try {
-      await startSelenium();
+  try {
+    await _startSelenium();
 //      origTestTask(platforms);
-    } finally {
+  } finally {
 //      await stopSelenium();
-    }
+  }
 //  };
   grind(args);
 }
@@ -25,51 +39,53 @@ main(List<String> args) async {
 @Task('dummy')
 dummy() {}
 
-DockerConnection dockerConnection;
-CreateResponse seleniumHub;
-CreateResponse seleniumNodeChrome;
-CreateResponse seleniumNodeFirefox;
+DockerConnection _dockerConnection;
+CreateResponse _createdHubContainer;
+CreateResponse _createdChromeNodeContainer;
+CreateResponse _createdFirefoxNodeContainer;
 
-startSelenium() async {
+_startSelenium() async {
   final dockerHostStr = io.Platform.environment[dockerHostFromEnvironment];
   assert(dockerHostStr != null && dockerHostStr.isNotEmpty);
 //  final dockerHost = Uri.parse(dockerHostStr);
 
-  dockerConnection = new DockerConnection(
+  _dockerConnection = new DockerConnection(
       Uri.parse(io.Platform.environment[dockerHostFromEnvironment]),
       new http.Client());
-  await dockerConnection.init();
-  seleniumHub = await task.run(dockerConnection, 'selenium/hub:2.46.0',
-      name: 'selenium-hub',
+  await _dockerConnection.init();
+  _createdHubContainer = await task.run(
+      _dockerConnection, _seleniumHubImage,
+      name: _hubContainerName,
       detach: true,
       publish: const ['4444:4444'],
       rm: true);
-  seleniumNodeChrome = await task.run(
-      dockerConnection, 'selenium/node-chrome-debug:2.46.0',
+  _createdChromeNodeContainer = await task.run(
+      _dockerConnection, _seleniumChromeImage,
       detach: true,
       publishAll: true,
       rm: true,
-      link: const ['selenium-hub:hub'],
-      addHost: const ['webserver:192.168.2.96']);
-  seleniumNodeFirefox = await task.run(
-      dockerConnection, 'selenium/node-firefox-debug:2.46.0',
+      link: const ['${_hubContainerName}:hub'],
+      addHost: const [webServer]);
+  _createdFirefoxNodeContainer = await task.run(
+      _dockerConnection, _seleniumFirefoxImage,
       detach: true,
       publishAll: true,
       rm: true,
-      link: const ['selenium-hub:hub'],
-      addHost: const ['webserver:192.168.2.96']);
+      link: const ['${_hubContainerName}:hub'],
+      addHost: const [webServer]);
 }
 
-stopSelenium() async {
-  if (dockerConnection != null) {
-    try {
-      if (seleniumNodeChrome != null) await dockerConnection
-          .stop(seleniumNodeChrome.container);
-    } catch (_) {}
-    try {
-      if (seleniumNodeFirefox != null) await dockerConnection
-          .stop(seleniumNodeFirefox.container);
-    } catch (_) {}
-    if (seleniumHub != null) await dockerConnection.stop(seleniumHub.container);
-  }
-}
+// TODO(zoechi) remove - should be obsoleted by `rm: true` on container creation
+//stopSelenium() async {
+//  if (_dockerConnection != null) {
+//    try {
+//      if (_createdChromeNodeContainer != null) await _dockerConnection
+//          .stop(_createdChromeNodeContainer.container);
+//    } catch (_) {}
+//    try {
+//      if (_createdFirefoxNodeContainer != null) await _dockerConnection
+//          .stop(_createdFirefoxNodeContainer.container);
+//    } catch (_) {}
+//    if (_createdHubContainer != null) await _dockerConnection.stop(_createdHubContainer.container);
+//  }
+//}
