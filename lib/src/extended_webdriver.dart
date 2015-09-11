@@ -19,7 +19,17 @@ class WebBrowser {
   static const opera = const WebBrowser(core.Browser.opera);
   static const safari = const WebBrowser(core.Browser.safari);
 
-  static const values = const [chrome, firefox];
+  static const values = const [
+    android,
+    chrome,
+    edge,
+    firefox,
+    ie,
+    ipad,
+    iphone,
+    opera,
+    safari
+  ];
 
   final String value;
   const WebBrowser(this.value);
@@ -79,6 +89,34 @@ class DragAndDrop {
   }
 }
 
+String cssSelectorToQuerySelectorAll(core.WebDriver driver, String cssSelector,
+    [WebElement element]) {
+  String js =
+      cssSelector = cssSelectorToQuerySelector(driver, cssSelector, element);
+  final pos = js.lastIndexOf('.querySelector(\'');
+  if (pos >= 0) {
+    return js.replaceFirst('.querySelector(\'', '.querySelectorAll(\'', pos);
+  }
+  return js;
+}
+
+String cssSelectorToQuerySelector(core.WebDriver driver, String cssSelector,
+    [WebElement element]) {
+  String js =
+      cssSelector.split(' /deep/ ').join('\').shadowRoot.querySelector(\'');
+  if (driver.capabilities['browserName'] == WebBrowser.chrome.value) {
+    js = js.split('::shadow').join('\').shadowRoot.querySelector(\':host');
+  } else {
+    js = js.split('::shadow').join('\').shadowRoot.querySelector(\'');
+  }
+  if (element == null) {
+    js = 'return document.querySelector(\'${js}\')';
+  } else {
+    js = 'return arguments[1].querySelector(\'${js}\')';
+  }
+  return js;
+}
+
 class ExtendedWebDriver implements core.WebDriver {
   final core.WebDriver _webDriver;
 
@@ -87,6 +125,11 @@ class ExtendedWebDriver implements core.WebDriver {
   /// Create a new instance of [ExtendedWebDriver].
   static Future<ExtendedWebDriver> createNew(
       {Uri uri, Map<String, dynamic> desired}) async {
+    if (desired['browserName'] == WebBrowser.firefox.value) {
+      if (desired == null) {
+        desired = new Map<String, dynamic>();
+      }
+    }
     return new ExtendedWebDriver.fromDriver(
         await core.createDriver(uri: uri, desired: desired));
   }
@@ -180,9 +223,27 @@ class ExtendedWebDriver implements core.WebDriver {
   /// Search for multiple elements within the entire current page.
   @override
   Stream<WebElement> findElements(core.By by) {
-//    final streamController = new StreamController<WebElement>();
+    if (by is By && by._using == _ByUsing.shadow) {
+      final streamController = new StreamController<WebElement>();
+      driver.execute(cssSelectorToQuerySelectorAll(driver, by._value), []).then(
+          (elements) {
+        if (elements == null) {
+          throw new core.NoSuchElementException(400, by.toString());
+        }
+        if (elements is core.WebElement) {
+          streamController.add(new WebElement._(elements));
+        } else {
+          elements.forEach((e) => streamController.add(new WebElement._(e)));
+        }
+        streamController.close();
+      },
+          onError: (e) =>
+              throw new core.NoSuchElementException(400, e.toString()));
+      return streamController.stream;
+    }
+
     return _webDriver
-        .findElements(by)
+        .findElements(_ByBrowser.ensureWrapped(driver, by))
         .map((e) => new WebElement._(e)); //.pipe(streamController);
 //    return streamController.stream;
 
@@ -211,23 +272,37 @@ class ExtendedWebDriver implements core.WebDriver {
   /// Search for an element within the entire current page.
   /// Throws [NoSuchElementException] if a matching element is not found.
   @override
-  Future<core.WebElement> findElement(core.By by) async {
-    try {
-      return new WebElement._(await _webDriver.findElement(by));
-    } catch (error) {
-      if (error is core.InvalidSelectorException &&
-          by.toJson()['using'] == 'css selector') {
-        // TODO(zoechi) use search context (for element.querySelector())
-        return execute('document.querySelector("${by.toJson()['value']}")', []);
-      } else {
-        rethrow;
+  Future<WebElement> findElement(core.By by) async {
+    if (by is By && by._using == _ByUsing.shadow) {
+      core.WebElement element;
+      try {
+        element = await driver.execute(
+            cssSelectorToQuerySelector(driver, by._value), []);
+      } catch (e) {
+        throw new core.NoSuchElementException(400, e.toString());
       }
+      if (element == null) {
+        throw new core.NoSuchElementException(400, by.toString());
+      }
+      return new WebElement._(element);
     }
+    return new WebElement._(
+        await _webDriver.findElement(_ByBrowser.ensureWrapped(driver, by)));
+//    try {
+//    } catch (error) {
+//      if (error is core.InvalidSelectorException &&
+//          by.toJson()['using'] == 'css selector') {
+//        // TODO(zoechi) use search context (for element.querySelector())
+//        return execute('document.querySelector("${by.toJson()['value']}")', []);
+//      } else {
+//        rethrow;
+//      }
+//    }
   }
 
   Future<bool> elementExists(core.By by) async {
     try {
-      var element = await _webDriver.findElement(by);
+      var element = await findElement(by);
       return element != null;
     } on core.NoSuchElementException catch (_) {
       return false;
@@ -390,8 +465,9 @@ class _ByUsing {
   static const tagName = const _ByUsing._('tagName', 'tag name');
   static const className = const _ByUsing._('className', 'class name');
   static const cssSelector = const _ByUsing._('cssSelector', 'css selector');
-  static const browserCssSelector =
-      const _ByUsing._('browserCssSelector', 'browser specific css selector');
+  static const shadow = const _ByUsing._('shadow', 'shadow');
+//  static const browserCssSelector =
+//      const _ByUsing._('browserCssSelector', 'browser specific css selector');
 
   final String value;
   final String text;
@@ -401,15 +477,64 @@ class _ByUsing {
         this.text = text != null ? text : value;
 }
 
+typedef String CssSelectorConverter(String selector);
+
+String removeShadowDom(String selector) {
+  return selector.replaceAll('::shadow', '').replaceAll('/deep/', '');
+}
+
+String replaceShadowWithDeep(String selector) {
+  return selector.replaceAll('::shadow', ' /deep/');
+}
+
+/// Wrapper for [By] to be able to create [By] instances without a reference
+/// to [WebDriver] even when browser specific selectors are used.
+class _ByBrowser implements core.By {
+  final By _by;
+  final core.WebDriver _driver;
+
+  _ByBrowser._(this._driver, this._by);
+
+  static core.By ensureWrapped(core.WebDriver driver, core.By by) {
+    if (by is _ByBrowser || (by as By)._browserValue == null) {
+      return by;
+    } else {
+      return new _ByBrowser._(driver, by);
+    }
+  }
+
+  String get __value {
+    if (_by._browserValue == null) {
+      return _by._value;
+    }
+    final webBrowser = WebBrowser.values
+        .firstWhere((i) => i.value == _driver.capabilities['browserName']);
+    final browserValue = _by._browserValue[webBrowser];
+    if (browserValue == null) {
+      return _by._value;
+    }
+    if (browserValue is String) {
+      return browserValue;
+    }
+    if (browserValue is CssSelectorConverter) {
+      return browserValue(_by._value);
+    }
+    throw '"${browserValue}" is not supported as CSS selector converter.';
+  }
+
+  @override
+  Map<String, String> toJson() => {'using': _by._using.text, 'value': __value};
+
+  @override
+  String toString() => 'By.${_by._using.value}(${__value})';
+}
+
 class By implements core.By {
   final _ByUsing _using;
   final String _value;
-  final Map<WebBrowser, String> _browserValue;
-  final core.WebDriver _driver;
+  final Map<WebBrowser, dynamic> _browserValue;
 
-  const By._(this._using, this._value)
-      : _driver = null,
-        _browserValue = null;
+  const By._(this._using, this._value, [this._browserValue]);
 
   /// Returns an element whose ID attribute matches the search value.
   const By.id(String id) : this._(_ByUsing.id, id);
@@ -438,23 +563,20 @@ class By implements core.By {
   const By.className(String className) : this._(_ByUsing.className, className);
 
   /// Returns an element matching a CSS selector.
-  const By.cssSelector(String cssSelector)
-      : this._(_ByUsing.cssSelector, cssSelector);
+  /// [browser] pass different selectors for specific browsers
+  const By.cssSelector(String cssSelector, [Map<WebBrowser, String> browser])
+      : this._(_ByUsing.cssSelector, cssSelector, browser);
 
-  const By._browser(this._using, this._driver, this._value, this._browserValue);
+//  const By._browser(this._using, this._value, this._browserValue);
 
-  /// Returns an element matching a CSS selector.
-  const By.browserCssSelector(core.WebDriver driver, String cssSelector,
-      Map<WebBrowser, String> browserCssSelector)
-      : this._browser(_ByUsing.browserCssSelector, driver, cssSelector,
-            browserCssSelector);
+  const By.shadow(String cssSelector) : this._(_ByUsing.shadow, cssSelector);
 
   @override
   Map<String, String> toJson() => {'using': _using.text, 'value': __value};
 
-  String get __value => _browserValue != null
-      ? _browserValue[_driver.capabilities['browserName']] ?? _value
-      : _value;
+  String get __value => _browserValue == null
+      ? _value
+      : throw 'If browser-specific selectors are used the instance must be wrapped within _ByBrowser before it can be passed to the driver.';
 
   @override
   String toString() => 'By.${_using.value}(${__value})';
@@ -475,6 +597,23 @@ class WebElement implements core.WebElement {
 
   @override
   core.Attributes get attributes => _element.attributes;
+
+  /// Set the [attribute] of [element] to [value].
+  /// See also http://stackoverflow.com/questions/8473024
+  Future setAttribute(String attribute, String value) {
+    return driver.execute(
+        'arguments[0].setAttribute(arguments[1], arguments[2])',
+        [this, attribute, value]);
+  }
+
+  Future setProperty(String property, String value) {
+    return driver.execute(
+        'arguments[0][${property}] = arguments[1]', [this, value]);
+  }
+
+  Future<String> getProperty(String property) {
+    return driver.execute('arguments[0][${property}]', [this]);
+  }
 
   @override
   Future clear() => _element.clear();
@@ -501,16 +640,56 @@ class WebElement implements core.WebElement {
   Future<bool> equals(core.WebElement other) => _element.equals(other);
 
   @override
-  Future<WebElement> findElement(core.By by) async =>
-      new WebElement._(await _element.findElement(by));
+  Future<WebElement> findElement(core.By by) async {
+    if (by is By && by._using == _ByUsing.shadow) {
+      core.WebElement element;
+      try {
+        element = await driver.execute(
+            cssSelectorToQuerySelector(driver, by._value, this), [this]);
+      } catch (e) {
+        throw new core.NoSuchElementException(400, e.toString());
+      }
+
+      if (element == null) {
+        throw new core.NoSuchElementException(400, by.toString());
+      }
+      return new WebElement._(element);
+    }
+
+    return new WebElement._(
+        await _element.findElement(_ByBrowser.ensureWrapped(this.driver, by)));
+  }
 
   @override
-  Stream<WebElement> findElements(core.By by) =>
-      _element.findElements(by).map((e) => new WebElement._(e));
+  Stream<WebElement> findElements(core.By by) {
+    if (by is By && by._using == _ByUsing.shadow) {
+      final streamController = new StreamController<WebElement>();
+      driver.execute(
+          cssSelectorToQuerySelectorAll(driver, by._value, this), [this]).then(
+          (elements) {
+        if (elements == null) {
+          throw new core.NoSuchElementException(400, by.toString());
+        }
+        if (elements is core.WebElement) {
+          streamController.add(new WebElement._(elements));
+        } else {
+          elements.forEach((e) => streamController.add(new WebElement._(e)));
+        }
+        streamController.close();
+      },
+          onError: (e) =>
+              throw new core.NoSuchElementException(400, e.toString()));
+      return streamController.stream;
+    }
+
+    return _element
+        .findElements(_ByBrowser.ensureWrapped(this.driver, by))
+        .map((e) => new WebElement._(e));
+  }
 
   Future<bool> elementExists(core.By by) async {
     try {
-      var element = await _element.findElement(by);
+      var element = await findElement(by);
       return element != null;
     } on core.NoSuchElementException catch (_) {
       return false;

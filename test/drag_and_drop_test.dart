@@ -3,26 +3,33 @@ library bwu_webdriver.test.drag_and_drop_test;
 import 'dart:math';
 import 'dart:async' show Future, Stream;
 import 'package:test/test.dart';
-import 'package:webdriver/io.dart';
+import 'package:webdriver/io.dart' show Mouse, NoSuchElementException;
 import 'package:bwu_webdriver/bwu_webdriver.dart';
 //import 'dart:convert' show UTF8, JSON;
 //import 'package:crypto/crypto.dart' show CryptoUtils;
 
+Future<ExtendedWebDriver> commonSetup(WebBrowser browser) async {
+  final driver = await ExtendedWebDriver.createNew(
+      uri: Uri.parse('http://localhost:4444/wd/hub/'),
+      desired: {'browserName': browser.value});
+  await driver.timeouts
+    ..setScriptTimeout(const Duration(milliseconds: 1500))
+    ..setImplicitTimeout(const Duration(seconds: 1000));
+  return driver;
+}
 main() {
   group('webdriver', () {
     ExtendedWebDriver driver;
     setUp(() async {
+      for(var browser in [WebBrowser.chrome, WebBrowser.firefox]) {
+        driver = await commonSetup(browser);
+        print(driver.capabilities);
+      }
       // for capabilities see https://code.google.com/p/selenium/wiki/DesiredCapabilities
-      driver = await ExtendedWebDriver.createNew(
-          uri: Uri.parse('http://localhost:4444/wd/hub/'),
-          desired: {'browserName': 'chrome'});
-      await driver.timeouts
-        ..setScriptTimeout(const Duration(milliseconds: 1500))
-        ..setImplicitTimeout(const Duration(seconds: 1000));
     });
 
     tearDown(() {
-      return driver.close();
+      return driver.quit();
     });
 
     test('drag_and_drop with simple mouse down, move, up', () async {
@@ -35,7 +42,7 @@ main() {
       await new Future.delayed(const Duration(seconds: 2), () {});
       await driver.mouse.up(Mouse.left);
       await new Future.delayed(const Duration(seconds: 10), () {});
-    }, skip: 'Doesn\'t work at least not in Chrome');
+    }/*, skip: 'Doesn\'t work at least not in Chrome'*/);
 
     group('drag_and_drop', () {
       test('with actions', () async {

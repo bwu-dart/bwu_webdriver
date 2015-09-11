@@ -7,6 +7,8 @@ environment:
   sdk: '>=1.9.0 <2.0.0'
 
 dependencies:
+  archive: '^1.0.20'
+#  crypto: '^0.9.0'
   webdriver: '>=0.10.0-pre.9 <0.11.0'
 
 dev_dependencies:
